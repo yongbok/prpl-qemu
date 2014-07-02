@@ -371,6 +371,8 @@ static const char * const excp_names[EXCP_LAST + 1] = {
     [EXCP_MDMX] = "MDMX",
     [EXCP_C2E] = "precise coprocessor 2",
     [EXCP_CACHE] = "cache error",
+    [EXCP_MSADIS] = "MSA disabled",
+    [EXCP_MSAFPE] = "MSA floating point",
 };
 
 target_ulong exception_resume_pc (CPUMIPSState *env)
@@ -583,11 +585,17 @@ void mips_cpu_do_interrupt(CPUState *cs)
     case EXCP_TRAP:
         cause = 13;
         goto set_EPC;
+    case EXCP_MSAFPE:
+        cause = 14;
+        goto set_EPC;
     case EXCP_FPE:
         cause = 15;
         goto set_EPC;
     case EXCP_C2E:
         cause = 18;
+        goto set_EPC;
+    case EXCP_MSADIS:
+        cause = 21;
         goto set_EPC;
     case EXCP_MDMX:
         cause = 22;

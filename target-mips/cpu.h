@@ -50,12 +50,74 @@ struct CPUMIPSTLBContext {
 };
 #endif
 
+/* MSA Context */
+
+#define MSA_WRLEN (128)
+
+typedef union wr_t wr_t;
+union wr_t {
+    int8_t  b[MSA_WRLEN/8];
+    int16_t h[MSA_WRLEN/16];
+    int32_t w[MSA_WRLEN/32];
+    int64_t d[MSA_WRLEN/64];
+};
+
+typedef struct CPUMIPSMSAContext CPUMIPSMSAContext;
+struct CPUMIPSMSAContext {
+
+#define MSAIR_REGISTER      0
+#define MSACSR_REGISTER     1
+#define MSAACCESS_REGISTER  2
+#define MSASAVE_REGISTER    3
+#define MSAMODIFY_REGISTER  4
+#define MSAREQUEST_REGISTER 5
+#define MSAMAP_REGISTER     6
+#define MSAUNMAP_REGISTER   7
+
+    int32_t msair;
+
+#define MSAIR_WRP_POS 16
+#define MSAIR_WRP_BIT (1 << MSAIR_WRP_POS)
+
+    int32_t msacsr;
+
+#define MSACSR_RM_POS   0
+#define MSACSR_RM_MASK  (0x3 << MSACSR_RM_POS)
+
+#define MSACSR_CAUSE_ENABLE_FLAGS_POS 2
+#define MSACSR_CAUSE_ENABLE_FLAGS_MASK \
+    (0xffff << MSACSR_CAUSE_ENABLE_FLAGS_POS)
+
+#define MSACSR_NX_POS 18
+#define MSACSR_NX_BIT (1 << MSACSR_NX_POS)
+
+#define MSACSR_FS_POS 24
+#define MSACSR_FS_BIT (1 << MSACSR_FS_POS)
+
+#define MSACSR_BITS                             \
+    (MSACSR_RM_MASK |                           \
+     MSACSR_CAUSE_ENABLE_FLAGS_MASK |           \
+     MSACSR_FS_BIT |                            \
+     MSACSR_NX_BIT)
+
+    int32_t msaaccess;
+    int32_t msasave;
+    int32_t msamodify;
+    int32_t msarequest;
+    int32_t msamap;
+    int32_t msaunmap;
+
+    float_status fp_status;
+};
+
 typedef union fpr_t fpr_t;
 union fpr_t {
     float64  fd;   /* ieee double precision */
     float32  fs[2];/* ieee single precision */
     uint64_t d;    /* binary double fixed-point */
     uint32_t w[2]; /* binary single fixed-point */
+/* FPU/MSA register mapping is not tested on big-endian hosts. */
+    wr_t     wr;   /* vector data */
 };
 /* define FP_ENDIAN_IDX to access the same location
  * in the fpr_t union regardless of the host endianness
@@ -173,6 +235,7 @@ typedef struct CPUMIPSState CPUMIPSState;
 struct CPUMIPSState {
     TCState active_tc;
     CPUMIPSFPUContext active_fpu;
+    CPUMIPSMSAContext active_msa;
 
     uint32_t current_tc;
     uint32_t current_fpu;
@@ -360,6 +423,7 @@ struct CPUMIPSState {
 #define CP0C2_SA   0
     int32_t CP0_Config3;
 #define CP0C3_M    31
+#define CP0C3_MSAP  28
 #define CP0C3_ISA_ON_EXC 16
 #define CP0C3_DSPP 10
 #define CP0C3_LPA  7
@@ -428,7 +492,7 @@ struct CPUMIPSState {
     int error_code;
     uint32_t hflags;    /* CPU State */
     /* TMASK defines different execution modes */
-#define MIPS_HFLAG_TMASK  0xC07FF
+#define MIPS_HFLAG_TMASK  0x1C07FF
 #define MIPS_HFLAG_MODE   0x00007 /* execution modes                    */
     /* The KSU flags must be the lowest bits in hflags. The flag order
        must be the same as defined for CP0 Status. This allows to use
@@ -469,6 +533,7 @@ struct CPUMIPSState {
     /* MIPS DSP resources access. */
 #define MIPS_HFLAG_DSP   0x40000  /* Enable access to MIPS DSP resources. */
 #define MIPS_HFLAG_DSPR2 0x80000  /* Enable access to MIPS DSPR2 resources. */
+#define MIPS_HFLAG_MSA   0x100000
     target_ulong btarget;        /* Jump / branch target               */
     target_ulong bcond;          /* Branch condition (if needed)       */
 
@@ -624,8 +689,10 @@ enum {
     EXCP_C2E,
     EXCP_CACHE, /* 32 */
     EXCP_DSPDIS,
+    EXCP_MSADIS,
+    EXCP_MSAFPE,
 
-    EXCP_LAST = EXCP_DSPDIS,
+    EXCP_LAST = EXCP_MSAFPE,
 };
 /* Dummy exception for conditional stores.  */
 #define EXCP_SC 0x100
@@ -721,7 +788,8 @@ static inline void compute_hflags(CPUMIPSState *env)
 {
     env->hflags &= ~(MIPS_HFLAG_COP1X | MIPS_HFLAG_64 | MIPS_HFLAG_CP0 |
                      MIPS_HFLAG_F64 | MIPS_HFLAG_FPU | MIPS_HFLAG_KSU |
-                     MIPS_HFLAG_UX | MIPS_HFLAG_DSP | MIPS_HFLAG_DSPR2);
+                     MIPS_HFLAG_UX | MIPS_HFLAG_DSP | MIPS_HFLAG_DSPR2 |
+                     MIPS_HFLAG_MSA);
     if (!(env->CP0_Status & (1 << CP0St_EXL)) &&
         !(env->CP0_Status & (1 << CP0St_ERL)) &&
         !(env->hflags & MIPS_HFLAG_DM)) {
@@ -777,6 +845,11 @@ static inline void compute_hflags(CPUMIPSState *env)
            would be too restrictive for them.  */
         if (env->CP0_Status & (1U << CP0St_CU3)) {
             env->hflags |= MIPS_HFLAG_COP1X;
+        }
+    }
+    if (env->insn_flags & ASE_MSA) {
+        if (env->CP0_Config5 & (1 << CP0C5_MSAEn)) {
+            env->hflags |= MIPS_HFLAG_MSA;
         }
     }
 }

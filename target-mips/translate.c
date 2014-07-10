@@ -14709,6 +14709,95 @@ static inline int check_msa_access(CPUMIPSState *env, DisasContext *ctx,
     }
     return 1;
 }
+
+static void determ_zero_element(TCGv tresult, uint8_t df, uint8_t wt)
+{
+    /* Note this function only works with MSA_WRLEN = 128 */
+    uint64_t eval_zero_or_big = 0;
+    uint64_t eval_big = 0;
+    switch (df) {
+    case 0: /*DF_BYTE*/
+        eval_zero_or_big = 0x0101010101010101ULL;
+        eval_big = 0x8080808080808080ULL;
+        break;
+    case 1: /*DF_HALF*/
+        eval_zero_or_big = 0x0001000100010001ULL;
+        eval_big = 0x8000800080008000ULL;
+        break;
+    case 2: /*DF_WORD*/
+        eval_zero_or_big = 0x0000000100000001ULL;
+        eval_big = 0x8000000080000000ULL;
+        break;
+    case 3: /*DF_DOUBLE*/
+        eval_zero_or_big = 0x0000000000000001ULL;
+        eval_big = 0x8000000000000000ULL;
+        break;
+    }
+    TCGv_i64 t0 = tcg_temp_local_new_i64();
+    TCGv_i64 t1 = tcg_temp_local_new_i64();
+    tcg_gen_subi_i64(t0, msa_wr_d[wt<<1], eval_zero_or_big);
+    tcg_gen_andc_i64(t0, t0, msa_wr_d[wt<<1]);
+    tcg_gen_andi_i64(t0, t0, eval_big);
+    tcg_gen_subi_i64(t1, msa_wr_d[(wt<<1)+1], eval_zero_or_big);
+    tcg_gen_andc_i64(t1, t1, msa_wr_d[(wt<<1)+1]);
+    tcg_gen_andi_i64(t1, t1, eval_big);
+    tcg_gen_or_i64(t0, t0, t1);
+    /* if all bits is zero then all element is not zero */
+    /* if some bit is non-zero then some element is zero */
+    tcg_gen_setcondi_i64(TCG_COND_NE, t0, t0, 0);
+    tcg_gen_trunc_i64_tl(tresult, t0);
+    tcg_temp_free_i64(t0);
+    tcg_temp_free_i64(t1);
+}
+
+static void gen_msa_branch(CPUMIPSState *env, DisasContext *ctx, uint32_t op1)
+{
+    check_insn(ctx, ASE_MSA);
+
+    if (ctx->hflags & MIPS_HFLAG_BMASK) {
+        generate_exception(ctx, EXCP_RI);
+        return;
+    }
+
+    uint8_t df = (ctx->opcode >> 21) & 0x3 /* df [22:21] */;
+    uint8_t wt = (ctx->opcode >> 16) & 0x1f /* wt [20:16] */;
+    int64_t s16 = (ctx->opcode >> 0) & 0xffff /* s16 [15:0] */;
+    s16 = (s16 << 48) >> 48; /* sign extend s16 to 64 bits*/
+
+    check_msa_access(env, ctx, wt, -1, -1);
+
+    switch (op1) {
+    case OPC_MSA_BZ_V:
+    case OPC_MSA_BNZ_V:
+        {
+            TCGv_i64 t0 = tcg_temp_local_new_i64();
+            tcg_gen_or_i64(t0, msa_wr_d[wt<<1], msa_wr_d[(wt<<1)+1]);
+            tcg_gen_setcondi_i64((op1 == OPC_MSA_BZ_V) ?
+                    TCG_COND_EQ : TCG_COND_NE, t0, t0, 0);
+            tcg_gen_trunc_i64_tl(bcond, t0);
+            tcg_temp_free_i64(t0);
+        }
+        break;
+    case OPC_MSA_BZ_B:
+    case OPC_MSA_BZ_H:
+    case OPC_MSA_BZ_W:
+    case OPC_MSA_BZ_D:
+        determ_zero_element(bcond, df, wt);
+        break;
+    case OPC_MSA_BNZ_B:
+    case OPC_MSA_BNZ_H:
+    case OPC_MSA_BNZ_W:
+    case OPC_MSA_BNZ_D:
+        determ_zero_element(bcond, df, wt);
+        tcg_gen_setcondi_tl(TCG_COND_EQ, bcond, bcond, 0);
+        break;
+    }
+
+    int64_t offset = s16 << 2;
+    ctx->btarget = ctx->pc + offset + 4;
+
+    ctx->hflags |= MIPS_HFLAG_BC;
+}
 static void decode_opc (CPUMIPSState *env, DisasContext *ctx)
 {
     int32_t offset;
@@ -15750,9 +15839,23 @@ static void decode_opc (CPUMIPSState *env, DisasContext *ctx)
         break;
 
     case OPC_CP1:
-        if (env->CP0_Config1 & (1 << CP0C1_FP)) {
+        op1 = MASK_CP1(ctx->opcode);
+
+        if ((ctx->insn_flags & ASE_MSA) &&
+                (op1 == OPC_MSA_BZ_V ||
+                 op1 == OPC_MSA_BNZ_V ||
+                 op1 == OPC_MSA_BZ_B ||
+                 op1 == OPC_MSA_BZ_H ||
+                 op1 == OPC_MSA_BZ_W ||
+                 op1 == OPC_MSA_BZ_D ||
+                 op1 == OPC_MSA_BNZ_B ||
+                 op1 == OPC_MSA_BNZ_H ||
+                 op1 == OPC_MSA_BNZ_W ||
+                 op1 == OPC_MSA_BNZ_D)) {
+            gen_msa_branch(env, ctx, op1);
+        } else if (env->CP0_Config1 & (1 << CP0C1_FP)) {
             check_cp1_enabled(ctx);
-            op1 = MASK_CP1(ctx->opcode);
+
             switch (op1) {
             case OPC_MFHC1:
             case OPC_MTHC1:

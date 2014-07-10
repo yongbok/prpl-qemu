@@ -1166,6 +1166,59 @@ void helper_msa_clti_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     }
 }
 
+void helper_msa_copy_s_df(CPUMIPSState *env, uint32_t df, uint32_t rd,
+        uint32_t ws, uint32_t n)
+{
+    n %= DF_ELEMENTS(df, MSA_WRLEN);
+    msa_check_index(env, (uint32_t)df, (uint32_t)n);
+    switch (df) {
+    case DF_BYTE: /* b */
+        env->active_tc.gpr[rd] = (int8_t)env->active_fpu.fpr[ws].wr.b[n];
+        break;
+    case DF_HALF: /* h */
+        env->active_tc.gpr[rd] = (int16_t)env->active_fpu.fpr[ws].wr.h[n];
+        break;
+    case DF_WORD: /* w */
+        env->active_tc.gpr[rd] = (int32_t)env->active_fpu.fpr[ws].wr.w[n];
+        break;
+#ifdef TARGET_MIPS64
+    case DF_DOUBLE: /* d */
+        env->active_tc.gpr[rd] = (int64_t)env->active_fpu.fpr[ws].wr.d[n];
+        break;
+#endif
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
+}
+
+void helper_msa_copy_u_df(CPUMIPSState *env, uint32_t df, uint32_t rd,
+        uint32_t ws, uint32_t n)
+{
+    n %= DF_ELEMENTS(df, MSA_WRLEN);
+    msa_check_index(env, (uint32_t)df, (uint32_t)n);
+    switch (df) {
+    case DF_BYTE: /* b */
+        env->active_tc.gpr[rd] = (uint8_t)env->active_fpu.fpr[ws].wr.b[n];
+        break;
+    case DF_HALF: /* h */
+        env->active_tc.gpr[rd] = (uint16_t)env->active_fpu.fpr[ws].wr.h[n];
+        break;
+    case DF_WORD: /* w */
+        env->active_tc.gpr[rd] = (uint32_t)env->active_fpu.fpr[ws].wr.w[n];
+        break;
+#ifdef TARGET_MIPS64
+    case DF_DOUBLE: /* d */
+        env->active_tc.gpr[rd] = (uint64_t)env->active_fpu.fpr[ws].wr.d[n];
+        break;
+#endif
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
+}
+
+
 #define SIGNED_EVEN(a, df) \
         ((((int64_t)(a)) << (64 - DF_BITS(df)/2)) >> (64 - DF_BITS(df)/2))
 #define UNSIGNED_EVEN(a, df) \
@@ -2142,6 +2195,27 @@ void helper_msa_splat_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     }
 }
 
+void helper_msa_splati_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t n)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    msa_splat_df(env, df, pwd, pws, n);
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_move_v(CPUMIPSState *env, uint32_t wd, uint32_t ws)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    msa_move_v(pwd, pws);
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
 void helper_msa_ldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
         uint32_t s10)
 {
@@ -2172,6 +2246,73 @@ void helper_msa_ldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
         /* shouldn't get here */
         assert(0);
     }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline void msa_insert_df(CPUMIPSState *env, uint32_t df, void *pwd,
+        target_ulong rs, uint32_t n)
+{
+    msa_check_index(env, df, n);
+    switch (df) {
+    case DF_BYTE:
+        B(pwd, n)   = (int8_t)rs;
+        break;
+    case DF_HALF:
+        H(pwd, n)   = (int16_t)rs;
+        break;
+    case DF_WORD:
+        W(pwd, n)   = (int32_t)rs;
+        break;
+    case DF_DOUBLE:
+        D(pwd, n)   = (int64_t)rs;
+        break;
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
+}
+
+void helper_msa_insert_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t rs, uint32_t n)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    msa_insert_df(env, df, pwd, env->active_tc.gpr[rs], n);
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline void msa_insve_df(CPUMIPSState *env, uint32_t df, void *pwd,
+        void *pws, uint32_t n)
+{
+    msa_check_index(env, df, n);
+    switch (df) {
+    case DF_BYTE:
+        B(pwd, n)   = (int8_t)B(pws, 0);
+        break;
+    case DF_HALF:
+        H(pwd, n)   = (int16_t)H(pws, 0);
+        break;
+    case DF_WORD:
+        W(pwd, n)   = (int32_t)W(pws, 0);
+        break;
+    case DF_DOUBLE:
+        D(pwd, n)   = (int64_t)D(pws, 0);
+        break;
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
+}
+
+void helper_msa_insve_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t n)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    msa_insve_df(env, df, pwd, pws, n);
     if (env->active_msa.msair & MSAIR_WRP_BIT) {
         env->active_msa.msamodify |= (1 << wd);
     }
@@ -2636,5 +2777,103 @@ void helper_msa_sld_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     msa_sld_df(env, df, pwd, pws, env->active_tc.gpr[rt]);
     if (env->active_msa.msair & MSAIR_WRP_BIT) {
         env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_sldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t n)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+
+    msa_sld_df(env, df, pwd, pws, n);
+
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+target_ulong helper_msa_cfcmsa(CPUMIPSState *env, uint32_t cs)
+{
+    switch (cs) {
+    case MSAIR_REGISTER:
+        return env->active_msa.msair;
+    case MSACSR_REGISTER:
+        return env->active_msa.msacsr & MSACSR_BITS;
+    }
+
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        switch (cs) {
+        case MSAACCESS_REGISTER:
+            return env->active_msa.msaaccess;
+        case MSASAVE_REGISTER:
+            return env->active_msa.msasave;
+        case MSAMODIFY_REGISTER:
+            return env->active_msa.msamodify;
+        case MSAREQUEST_REGISTER:
+            return env->active_msa.msarequest;
+        case MSAMAP_REGISTER:
+            return env->active_msa.msamap;
+        case MSAUNMAP_REGISTER:
+            return env->active_msa.msaunmap;
+        }
+    }
+    return 0;
+}
+
+void helper_msa_ctcmsa(CPUMIPSState *env, target_ulong elm, uint32_t cd)
+{
+    switch (cd) {
+    case MSAIR_REGISTER:
+        break;
+    case MSACSR_REGISTER:
+        env->active_msa.msacsr = (int32_t)elm & MSACSR_BITS;
+
+        /* set float_status rounding mode */
+        set_float_rounding_mode(
+            ieee_rm[(env->active_msa.msacsr & MSACSR_RM_MASK) >> MSACSR_RM_POS],
+            &env->active_msa.fp_status);
+
+        /* set float_status flush modes */
+        set_flush_to_zero(
+          (env->active_msa.msacsr & MSACSR_FS_BIT) != 0 ? 1 : 0,
+          &env->active_msa.fp_status);
+        set_flush_inputs_to_zero(
+          (env->active_msa.msacsr & MSACSR_FS_BIT) != 0 ? 1 : 0,
+          &env->active_msa.fp_status);
+
+        /* check exception */
+        if ((GET_FP_ENABLE(env->active_msa.msacsr) | FP_UNIMPLEMENTED)
+            & GET_FP_CAUSE(env->active_msa.msacsr)) {
+            helper_raise_exception(env, EXCP_MSAFPE);
+        }
+        break;
+    case MSAACCESS_REGISTER:
+        break;
+    case MSASAVE_REGISTER:
+        if (env->active_msa.msair & MSAIR_WRP_BIT) {
+            env->active_msa.msasave = (int32_t)elm;
+        }
+        break;
+    case MSAMODIFY_REGISTER:
+        if (env->active_msa.msair & MSAIR_WRP_BIT) {
+            env->active_msa.msamodify = (int32_t)elm;
+        }
+        break;
+    case MSAREQUEST_REGISTER:
+        break;
+    case MSAMAP_REGISTER:
+        if (env->active_msa.msair & MSAIR_WRP_BIT) {
+            env->active_msa.msamap = (int32_t)elm;
+            env->active_msa.msaaccess |= 1 << (int32_t)elm;
+            return;
+        }
+        break;
+    case MSAUNMAP_REGISTER:
+        if (env->active_msa.msair & MSAIR_WRP_BIT) {
+            env->active_msa.msaunmap = (int32_t)elm;
+            env->active_msa.msaaccess &= ~(1 << (int32_t)elm);
+        }
+        break;
     }
 }

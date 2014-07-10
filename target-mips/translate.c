@@ -15340,6 +15340,139 @@ static void gen_msa_3r(CPUMIPSState *env, DisasContext *ctx)
     tcg_temp_free_i32(tdf);
 }
 
+static void gen_msa_elm(CPUMIPSState *env, DisasContext *ctx)
+{
+#define MASK_MSA_ELM(op)    (MASK_MSA_MINOR(op) | (op & (0xf << 22)))
+#define MASK_MSA_ELM_DF3E(op)   (MASK_MSA_MINOR(op) | (op & (0x3FF << 16)))
+    uint32_t opcode = ctx->opcode;
+
+    uint8_t dfn = (ctx->opcode >> 16) & 0x3f /* dfn [21:16] */;
+
+    uint32_t df = 0, n = 0;
+
+    if ((dfn & 0x20) == 0x00) {         /* byte data format */
+        n = dfn & 0x1f;
+        df = 0;
+    } else if ((dfn & 0x30) == 0x20) {  /* half data format */
+        n = dfn & 0x0f;
+        df = 1;
+    } else if ((dfn & 0x38) == 0x30) {  /* word data format */
+        n = dfn & 0x07;
+        df = 2;
+    } else if ((dfn & 0x3c) == 0x38) {  /* double data format */
+        n = dfn & 0x3;
+        df = 3;
+    } else if (dfn == 0x3E) {  /* CTCMSA, CFCMSA, MOVE.V */
+        df = 4;
+    } else {
+        if (check_msa_access(env, ctx, -1, -1, -1)) {
+            generate_exception(ctx, EXCP_RI);
+        }
+        return;
+    }
+
+    if (df == 4) {
+        uint8_t source = (ctx->opcode >> 11) & 0x1f /* rs/cs/ws [15:11] */;
+        uint8_t dest = (ctx->opcode >> 6) & 0x1f /* cd/rd/wd [10:6] */;
+        TCGv telm = tcg_temp_new();
+        TCGv_i32 tsr = tcg_const_i32(source);
+        TCGv_i32 tdt = tcg_const_i32(dest);
+
+        switch (MASK_MSA_ELM_DF3E(opcode)) {
+        case OPC_MSA_CTCMSA:
+            {
+                check_msa_access(env, ctx, -1, -1, -1);
+                gen_load_gpr(telm, source);
+                gen_helper_msa_ctcmsa(cpu_env, telm, tdt);
+            }
+            break;
+        case OPC_MSA_CFCMSA:
+            {
+                check_msa_access(env, ctx, -1, -1, -1);
+                gen_helper_msa_cfcmsa(telm, cpu_env, tsr);
+                gen_store_gpr(telm, dest);
+            }
+            break;
+        case OPC_MSA_MOVE_V:
+            {
+                check_msa_access(env, ctx, -1, -1, -1);
+                gen_helper_msa_move_v(cpu_env, tdt, tsr);
+            }
+            break;
+        default:
+            MIPS_INVAL("MSA instruction");
+            generate_exception(ctx, EXCP_RI);
+            break;
+        }
+
+        tcg_temp_free(telm);
+        tcg_temp_free_i32(tdt);
+        tcg_temp_free_i32(tsr);
+    } else {
+        int df_bits = 8 * (1 << df);
+        if (n >= MSA_WRLEN / df_bits) {
+            if (check_msa_access(env, ctx, -1, -1, -1)) {
+                generate_exception(ctx, EXCP_RI);
+            }
+        } else {
+            uint8_t ws = (ctx->opcode >> 11) & 0x1f /* ws [15:11] */;
+            uint8_t wd = (ctx->opcode >> 6) & 0x1f /* wd [10:6] */;
+
+            TCGv_i32 tws = tcg_const_i32(ws);
+            TCGv_i32 twd = tcg_const_i32(wd);
+            TCGv_i32 tn  = tcg_const_i32(n);
+            TCGv_i32 tdf = tcg_const_i32(df);
+
+            switch (MASK_MSA_ELM(opcode)) {
+            case OPC_MSA_SLDI_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_sldi_df(cpu_env, tdf, twd, tws, tn);
+                break;
+            case OPC_MSA_SPLATI_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_splati_df(cpu_env, tdf, twd, tws, tn);
+                break;
+            case OPC_MSA_INSVE_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_insve_df(cpu_env, tdf, twd, tws, tn);
+                break;
+            case OPC_MSA_COPY_S_df:
+            case OPC_MSA_COPY_U_df:
+            case OPC_MSA_INSERT_df:
+#if !defined(TARGET_MIPS64)
+                /* Double format valid only for MIPS64 */
+                if (df == 3) {
+                    if (check_msa_access(env, ctx, -1, -1, -1)) {
+                        generate_exception(ctx, EXCP_RI);
+                    }
+                    break;
+                }
+#endif
+                check_msa_access(env, ctx, -1, ws, wd);
+                switch (MASK_MSA_ELM(opcode)) {
+                case OPC_MSA_COPY_S_df:
+                    gen_helper_msa_copy_s_df(cpu_env, tdf, twd, tws, tn);
+                    break;
+                case OPC_MSA_COPY_U_df:
+                    gen_helper_msa_copy_u_df(cpu_env, tdf, twd, tws, tn);
+                    break;
+                case OPC_MSA_INSERT_df:
+                    gen_helper_msa_insert_df(cpu_env, tdf, twd, tws, tn);
+                    break;
+                }
+                break;
+            default:
+                MIPS_INVAL("MSA instruction");
+                generate_exception(ctx, EXCP_RI);
+            }
+            tcg_temp_free_i32(twd);
+            tcg_temp_free_i32(tws);
+            tcg_temp_free_i32(tn);
+            tcg_temp_free_i32(tdf);
+        }
+    }
+}
+
 static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
 {
     uint32_t opcode = ctx->opcode;
@@ -15369,6 +15502,9 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
     case OPC_MSA_3R_14:
     case OPC_MSA_3R_15:
         gen_msa_3r(env, ctx);
+        break;
+    case OPC_MSA_ELM:
+        gen_msa_elm(env, ctx);
         break;
     default:
         MIPS_INVAL("MSA instruction");

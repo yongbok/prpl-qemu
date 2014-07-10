@@ -194,3 +194,143 @@ static inline void msa_store_wr_elem(CPUMIPSState *env, uint64_t val,
         assert(0);
     }
 }
+
+void helper_msa_andi_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        B(pwd, i) = B(pws, i) & i8;
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_ori_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        B(pwd, i) = B(pws, i) | i8;
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_nori_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        B(pwd, i) = ~(B(pws, i) | i8);
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_xori_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        B(pwd, i) = B(pws, i) ^ i8;
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+#define BIT_MOVE_IF_NOT_ZERO(dest, arg1, arg2, df) \
+            dest = UNSIGNED(((dest & (~arg2)) | (arg1 & arg2)), df)
+
+void helper_msa_bmnzi_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        BIT_MOVE_IF_NOT_ZERO(B(pwd, i), B(pws, i), i8, DF_BYTE);
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+#define BIT_MOVE_IF_ZERO(dest, arg1, arg2, df) \
+            dest = UNSIGNED((dest & arg2) | (arg1 & (~arg2)), df)
+
+void helper_msa_bmzi_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        BIT_MOVE_IF_ZERO(B(pwd, i), B(pws, i), i8, DF_BYTE);
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+#define BIT_SELECT(dest, arg1, arg2, df) \
+            dest = UNSIGNED((arg1 & (~dest)) | (arg2 & dest), df)
+
+void helper_msa_bseli_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
+        uint32_t i8)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        BIT_SELECT(B(pwd, i), B(pws, i), i8, DF_BYTE);
+    } DONE_ALL_ELEMENTS;
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+#define SHF_POS(i, imm) ((i & 0xfc) + ((imm >> (2 * (i & 0x03))) & 0x03))
+
+static inline void msa_shf_df(CPUMIPSState *env, uint32_t df, void *pwd,
+        void *pws, uint32_t imm)
+{
+    wr_t wx, *pwx = &wx;
+    switch (df) {
+    case DF_BYTE:
+      ALL_B_ELEMENTS(i, MSA_WRLEN) {
+        B(pwx, i) = B(pws, SHF_POS(i, imm));
+      } DONE_ALL_ELEMENTS;
+      break;
+    case DF_HALF:
+      ALL_H_ELEMENTS(i, MSA_WRLEN) {
+        H(pwx, i) = H(pws, SHF_POS(i, imm));
+      } DONE_ALL_ELEMENTS;
+      break;
+    case DF_WORD:
+      ALL_W_ELEMENTS(i, MSA_WRLEN) {
+        W(pwx, i) = W(pws, SHF_POS(i, imm));
+      } DONE_ALL_ELEMENTS;
+      break;
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
+    msa_move_v(pwd, pwx);
+}
+
+void helper_msa_shf_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t imm)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    void *pws = &(env->active_fpu.fpr[ws]);
+    msa_shf_df(env, df, pwd, pws, imm);
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}

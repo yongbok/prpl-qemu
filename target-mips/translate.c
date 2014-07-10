@@ -14798,6 +14798,95 @@ static void gen_msa_branch(CPUMIPSState *env, DisasContext *ctx, uint32_t op1)
 
     ctx->hflags |= MIPS_HFLAG_BC;
 }
+
+static void gen_msa_i8(CPUMIPSState *env, DisasContext *ctx)
+{
+#define MASK_MSA_I8(op)    (MASK_MSA_MINOR(op) | (op & (0x03 << 24)))
+
+    uint32_t opcode = ctx->opcode;
+
+    uint8_t i8 = (opcode >> 16) & 0xff /* i8 [23:16] */;
+    uint8_t ws = (opcode >> 11) & 0x1f /* ws [15:11] */;
+    uint8_t wd = (opcode >> 6) & 0x1f /* wd [10:6] */;
+
+    TCGv_i32 twd = tcg_const_i32(wd);
+    TCGv_i32 tws = tcg_const_i32(ws);
+    TCGv_i32 ti8 = tcg_const_i32(i8);
+
+    switch (MASK_MSA_I8(opcode)) {
+    case OPC_MSA_ANDI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_andi_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_ORI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_ori_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_NORI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_nori_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_XORI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_xori_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_BMNZI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bmnzi_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_BMZI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bmzi_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_BSELI_B:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bseli_b(cpu_env, twd, tws, ti8);
+        break;
+    case OPC_MSA_SHF_B:
+    case OPC_MSA_SHF_H:
+    case OPC_MSA_SHF_W:
+        {
+            uint8_t df = (opcode >> 24) & 0x3;
+            if (df == 3) {
+                generate_exception(ctx, EXCP_RI);
+            } else {
+                TCGv_i32 tdf = tcg_const_i32(df);
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_shf_df(cpu_env, tdf, twd, tws, ti8);
+                tcg_temp_free_i32(tdf);
+            }
+        }
+        break;
+    default:
+        MIPS_INVAL("MSA instruction");
+        generate_exception(ctx, EXCP_RI);
+        break;
+    }
+
+    tcg_temp_free_i32(twd);
+    tcg_temp_free_i32(tws);
+    tcg_temp_free_i32(ti8);
+}
+
+static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
+{
+    uint32_t opcode = ctx->opcode;
+    check_insn(ctx, ASE_MSA);
+
+    switch (MASK_MSA_MINOR(opcode)) {
+    case OPC_MSA_I8_00:
+    case OPC_MSA_I8_01:
+    case OPC_MSA_I8_02:
+        gen_msa_i8(env, ctx);
+        break;
+    default:
+        MIPS_INVAL("MSA instruction");
+        generate_exception(ctx, EXCP_RI);
+        break;
+    }
+
+}
+
 static void decode_opc (CPUMIPSState *env, DisasContext *ctx)
 {
     int32_t offset;
@@ -15988,9 +16077,10 @@ static void decode_opc (CPUMIPSState *env, DisasContext *ctx)
         offset = (int32_t)(ctx->opcode & 0x3FFFFFF) << 2;
         gen_compute_branch(ctx, op, 4, rs, rt, offset);
         break;
-    case OPC_MDMX:
-        check_insn(ctx, ASE_MDMX);
+    case OPC_MSA: /* OPC_MDMX */
         /* MDMX: Not implemented. */
+        gen_msa(env, ctx);
+        break;
     default:            /* Invalid */
         MIPS_INVAL("major opcode");
         generate_exception(ctx, EXCP_RI);

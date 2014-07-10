@@ -195,6 +195,38 @@ static inline void msa_store_wr_elem(CPUMIPSState *env, uint64_t val,
     }
 }
 
+void helper_msa_addvi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = (int64_t) ts + u5;
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_subvi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = (int64_t) ts - u5;
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
 void helper_msa_andi_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
         uint32_t i8)
 {
@@ -295,6 +327,120 @@ void helper_msa_bseli_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
     }
 }
 
+static inline int64_t msa_ceq_df(CPUMIPSState *env, uint32_t df, int64_t arg1,
+        int64_t arg2)
+{
+    return arg1 == arg2 ? -1 : 0;
+}
+
+void helper_msa_ceqi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t i5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_ceq_df(env, df, ts, i5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_cle_s_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    return arg1 <= arg2 ? -1 : 0;
+}
+
+void helper_msa_clei_s_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t s5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_cle_s_df(env, df, ts, s5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_cle_u_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_arg2 = UNSIGNED(arg2, df);
+    return u_arg1 <= u_arg2 ? -1 : 0;
+}
+
+void helper_msa_clei_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    uint64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_i64(env, ws, df, i);
+        td = msa_cle_u_df(env, df, ts, u5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_clt_s_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    return arg1 < arg2 ? -1 : 0;
+}
+
+void helper_msa_clti_s_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t s5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_clt_s_df(env, df, ts, s5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_clt_u_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_arg2 = UNSIGNED(arg2, df);
+    return u_arg1 < u_arg2 ? -1 : 0;
+}
+
+void helper_msa_clti_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_clt_u_df(env, df, ts, u5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
 #define SHF_POS(i, imm) ((i & 0xfc) + ((imm >> (2 * (i & 0x03))) & 0x03))
 
 static inline void msa_shf_df(CPUMIPSState *env, uint32_t df, void *pwd,
@@ -330,6 +476,133 @@ void helper_msa_shf_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     void *pwd = &(env->active_fpu.fpr[wd]);
     void *pws = &(env->active_fpu.fpr[ws]);
     msa_shf_df(env, df, pwd, pws, imm);
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_max_s_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    return arg1 > arg2 ? arg1 : arg2;
+}
+
+void helper_msa_maxi_s_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t s5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_max_s_df(env, df, ts, s5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_max_u_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_arg2 = UNSIGNED(arg2, df);
+    return u_arg1 > u_arg2 ? arg1 : arg2;
+}
+
+void helper_msa_maxi_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    uint64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_i64(env, ws, df, i);
+        td = msa_max_u_df(env, df, ts, u5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_min_s_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    return arg1 < arg2 ? arg1 : arg2;
+}
+
+void helper_msa_mini_s_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t s5)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_min_s_df(env, df, ts, s5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_min_u_df(CPUMIPSState *env, uint32_t df,
+        int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_arg2 = UNSIGNED(arg2, df);
+    return u_arg1 < u_arg2 ? arg1 : arg2;
+}
+
+void helper_msa_mini_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, int64_t u5)
+{
+    uint64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_i64(env, ws, df, i);
+        td = msa_min_u_df(env, df, ts, u5);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_ldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t s10)
+{
+    void *pwd = &(env->active_fpu.fpr[wd]);
+    int64_t s64 = ((int64_t)s10 << 54) >> 54;
+    switch (df) {
+    case DF_BYTE:
+        ALL_B_ELEMENTS(i, MSA_WRLEN) {
+            B(pwd, i)   = (int8_t)s10;
+        } DONE_ALL_ELEMENTS;
+        break;
+    case DF_HALF:
+        ALL_H_ELEMENTS(i, MSA_WRLEN) {
+            H(pwd, i)   = (int16_t)s64;
+        } DONE_ALL_ELEMENTS;
+        break;
+    case DF_WORD:
+        ALL_W_ELEMENTS(i, MSA_WRLEN) {
+            W(pwd, i)   = (int32_t)s64;
+        } DONE_ALL_ELEMENTS;
+        break;
+    case DF_DOUBLE:
+        ALL_D_ELEMENTS(i, MSA_WRLEN) {
+            D(pwd, i)   = s64;
+        } DONE_ALL_ELEMENTS;
+       break;
+    default:
+        /* shouldn't get here */
+        assert(0);
+    }
     if (env->active_msa.msair & MSAIR_WRP_BIT) {
         env->active_msa.msamodify |= (1 << wd);
     }

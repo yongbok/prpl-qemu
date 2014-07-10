@@ -694,13 +694,25 @@ DEF_HELPER_FLAGS_2(rddsp, 0, tl, tl, env)
 
 /* MIPS SIMD Architecture */
 
+DEF_HELPER_5(msa_addvi_df, void, env, i32, i32, i32, s64)
 DEF_HELPER_4(msa_andi_b, void, env, i32, i32, i32)
 DEF_HELPER_4(msa_bmnzi_b, void, env, i32, i32, i32)
 DEF_HELPER_4(msa_bmzi_b, void, env, i32, i32, i32)
 DEF_HELPER_4(msa_bseli_b, void, env, i32, i32, i32)
+DEF_HELPER_5(msa_ceqi_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_clei_s_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_clei_u_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_clti_s_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_clti_u_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_4(msa_ldi_df, void, env, i32, i32, i32)
+DEF_HELPER_5(msa_maxi_s_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_maxi_u_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_mini_s_df, void, env, i32, i32, i32, s64)
+DEF_HELPER_5(msa_mini_u_df, void, env, i32, i32, i32, s64)
 DEF_HELPER_4(msa_nori_b, void, env, i32, i32, i32)
 DEF_HELPER_4(msa_ori_b, void, env, i32, i32, i32)
 DEF_HELPER_5(msa_shf_df, void, env, i32, i32, i32, i32)
+DEF_HELPER_5(msa_subvi_df, void, env, i32, i32, i32, s64)
 DEF_HELPER_4(msa_xori_b, void, env, i32, i32, i32)
 
 #include "exec/def-helper.h"

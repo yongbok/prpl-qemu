@@ -14955,6 +14955,102 @@ static void gen_msa_i5(CPUMIPSState *env, DisasContext *ctx)
     tcg_temp_free_i64(ts5);
 }
 
+static void gen_msa_bit(CPUMIPSState *env, DisasContext *ctx)
+{
+#define MASK_MSA_BIT(op)    (MASK_MSA_MINOR(op) | (op & (0x7 << 23)))
+    uint32_t opcode = ctx->opcode;
+
+    uint8_t dfm = (ctx->opcode >> 16) & 0x7f /* dfm [22:16] */;
+    uint32_t df = 0, m = 0;
+
+    if ((dfm & 0x40) == 0x00) {         /* double data format */
+        m = dfm & 0x3f;
+        df = 3;
+    } else if ((dfm & 0x60) == 0x40) {  /* word data format */
+        m = dfm & 0x1f;
+        df = 2;
+    } else if ((dfm & 0x70) == 0x60) {  /* half data format */
+        m = dfm & 0x0f;
+        df = 1;
+    } else if ((dfm & 0x78) == 0x70) {  /* byte data format */
+        m = dfm & 0x7;
+        df = 0;
+    } else {
+        if (check_msa_access(env, ctx, -1, -1, -1)) {
+            generate_exception(ctx, EXCP_RI);
+        }
+        return;
+    }
+
+    uint8_t ws = (ctx->opcode >> 11) & 0x1f /* ws [15:11] */;
+    uint8_t wd = (ctx->opcode >> 6) & 0x1f /* wd [10:6] */;
+
+    TCGv_i32 tdf = tcg_const_i32(df);
+    TCGv_i32 tm  = tcg_const_i32(m);
+    TCGv_i32 twd = tcg_const_i32(wd);
+    TCGv_i32 tws = tcg_const_i32(ws);
+
+    switch (MASK_MSA_BIT(opcode)) {
+    case OPC_MSA_SLLI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_slli_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SRAI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_srai_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SRLI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_srli_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_BCLRI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bclri_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_BSETI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bseti_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_BNEGI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_bnegi_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_BINSLI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_binsli_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_BINSRI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_binsri_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SAT_S_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_sat_s_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SAT_U_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_sat_u_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SRARI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_srari_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    case OPC_MSA_SRLRI_df:
+        check_msa_access(env, ctx, -1, ws, wd);
+        gen_helper_msa_srlri_df(cpu_env, tdf, twd, tws, tm);
+        break;
+    default:
+        MIPS_INVAL("MSA instruction");
+        generate_exception(ctx, EXCP_RI);
+        break;
+    }
+
+    tcg_temp_free_i32(tdf);
+    tcg_temp_free_i32(tm);
+    tcg_temp_free_i32(twd);
+    tcg_temp_free_i32(tws);
+}
+
 static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
 {
     uint32_t opcode = ctx->opcode;
@@ -14969,6 +15065,10 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
     case OPC_MSA_I5_06:
     case OPC_MSA_I5_07:
         gen_msa_i5(env, ctx);
+        break;
+    case OPC_MSA_BIT_09:
+    case OPC_MSA_BIT_0A:
+        gen_msa_bit(env, ctx);
         break;
     default:
         MIPS_INVAL("MSA instruction");

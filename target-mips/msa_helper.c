@@ -279,6 +279,140 @@ void helper_msa_xori_b(CPUMIPSState *env, uint32_t wd, uint32_t ws,
     }
 }
 
+static inline int64_t msa_bclr_df(CPUMIPSState *env, uint32_t df, int64_t arg1,
+        int64_t arg2)
+{
+    int32_t b_arg2 = BIT_POSITION(arg2, df);
+
+    return UNSIGNED(arg1 & (~(1LL << b_arg2)), df);
+}
+
+void helper_msa_bclri_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_bclr_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_bneg_df(CPUMIPSState *env, uint32_t df, int64_t arg1,
+        int64_t arg2)
+{
+    int32_t b_arg2 = BIT_POSITION(arg2, df);
+    return UNSIGNED(arg1 ^ (1LL << b_arg2), df);
+}
+
+void helper_msa_bnegi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_bneg_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_bset_df(CPUMIPSState *env, uint32_t df, int64_t arg1,
+        int64_t arg2)
+{
+    int32_t b_arg2 = BIT_POSITION(arg2, df);
+    return UNSIGNED(arg1 | (1LL << b_arg2), df);
+}
+
+void helper_msa_bseti_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_bset_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_binsl_df(CPUMIPSState *env, uint32_t df,
+        int64_t dest, int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_dest = UNSIGNED(dest, df);
+    int32_t sh_d = BIT_POSITION(arg2, df) + 1;
+    int32_t sh_a = DF_BITS(df) - sh_d;
+    if (sh_d == DF_BITS(df)) {
+        return u_arg1;
+    } else {
+        return UNSIGNED(UNSIGNED(u_dest << sh_d, df) >> sh_d, df) |
+               UNSIGNED(UNSIGNED(u_arg1 >> sh_a, df) << sh_a, df);
+    }
+}
+
+void helper_msa_binsli_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_load_wr_elem_s64(env, wd, df, i);
+        td = msa_binsl_df(env, df, td, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_binsr_df(CPUMIPSState *env, uint32_t df,
+        int64_t dest, int64_t arg1, int64_t arg2)
+{
+    uint64_t u_arg1 = UNSIGNED(arg1, df);
+    uint64_t u_dest = UNSIGNED(dest, df);
+    int32_t sh_d = BIT_POSITION(arg2, df) + 1;
+    int32_t sh_a = DF_BITS(df) - sh_d;
+    if (sh_d == DF_BITS(df)) {
+        return u_arg1;
+    } else {
+        return UNSIGNED(UNSIGNED(u_dest >> sh_d, df) << sh_d, df) |
+               UNSIGNED(UNSIGNED(u_arg1 << sh_a, df) >> sh_a, df);
+    }
+}
+
+void helper_msa_binsri_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_load_wr_elem_s64(env, wd, df, i);
+        td = msa_binsr_df(env, df, td, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
 #define BIT_MOVE_IF_NOT_ZERO(dest, arg1, arg2, df) \
             dest = UNSIGNED(((dest & (~arg2)) | (arg1 & arg2)), df)
 
@@ -602,6 +736,164 @@ void helper_msa_ldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     default:
         /* shouldn't get here */
         assert(0);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_sat_u_df(CPUMIPSState *env, uint32_t df, int64_t arg,
+        uint32_t m)
+{
+    uint64_t u_arg = UNSIGNED(arg, df);
+    return  u_arg < M_MAX_UINT(m+1) ? u_arg :
+                                      M_MAX_UINT(m+1);
+}
+
+void helper_msa_sat_u_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    uint64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_i64(env, ws, df, i);
+        td = msa_sat_u_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_sat_s_df(CPUMIPSState *env, uint32_t df, int64_t arg,
+        uint32_t m)
+{
+    return arg < M_MIN_INT(m+1) ? M_MIN_INT(m+1) :
+                                  arg > M_MAX_INT(m+1) ? M_MAX_INT(m+1) :
+                                                         arg;
+}
+
+void helper_msa_sat_s_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_sat_s_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_slli_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = ts << m;
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+void helper_msa_srai_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = ts >> m;
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_srli_df(CPUMIPSState *env, uint32_t df, int64_t arg,
+        uint32_t m)
+{
+    uint64_t u_arg = UNSIGNED(arg, df);
+    return u_arg >> m;
+}
+
+void helper_msa_srli_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_srli_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_srari_df(CPUMIPSState *env, uint32_t df, int64_t arg,
+        uint32_t m)
+{
+    if (m == 0) {
+        return arg;
+    } else {
+        int64_t r_bit = (arg >> (m - 1)) & 1;
+        return (arg >> m) + r_bit;
+    }
+}
+
+void helper_msa_srari_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_srari_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline int64_t msa_srlri_df(CPUMIPSState *env, uint32_t df, int64_t arg,
+        uint32_t m)
+{
+    uint64_t u_arg = UNSIGNED(arg, df);
+    if (m == 0) {
+        return u_arg;
+    } else {
+        uint64_t r_bit = (u_arg >> (m - 1)) & 1;
+        return (u_arg >> m) + r_bit;
+    }
+}
+
+void helper_msa_srlri_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+        uint32_t ws, uint32_t m)
+{
+    int64_t td, ts;
+    int i;
+    int df_bits = 8 * (1 << df);
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        ts = msa_load_wr_elem_s64(env, ws, df, i);
+        td = msa_srlri_df(env, df, ts, m);
+        msa_store_wr_elem(env, td, wd, df, i);
     }
     if (env->active_msa.msair & MSAIR_WRP_BIT) {
         env->active_msa.msamodify |= (1 << wd);

@@ -15671,6 +15671,101 @@ static void gen_msa_3rf(CPUMIPSState *env, DisasContext *ctx)
     tcg_temp_free_i32(tdf1);
 }
 
+static void gen_msa_vec(CPUMIPSState *env, DisasContext *ctx)
+{
+#define MASK_MSA_VEC(op)    (MASK_MSA_MINOR(op) | (op & (0x1f << 21)))
+#define MASK_MSA_2R(op)     (MASK_MSA_MINOR(op) | (op & (0x1f << 21)) | \
+                            (op & (0x7 << 18)))
+#define MASK_MSA_2RF(op)    (MASK_MSA_MINOR(op) | (op & (0x1f << 21)) | \
+                            (op & (0xf << 17)))
+
+    uint32_t opcode = ctx->opcode;
+
+    uint8_t wt = (ctx->opcode >> 16) & 0x1f /* wt [20:16] */;
+    uint8_t ws = (ctx->opcode >> 11) & 0x1f /* ws [15:11] */;
+    uint8_t wd = (ctx->opcode >> 6) & 0x1f /* wd [10:6] */;
+
+    TCGv_i32 twd = tcg_const_i32(wd);
+    TCGv_i32 tws = tcg_const_i32(ws);
+    TCGv_i32 twt = tcg_const_i32(wt);
+
+    switch (MASK_MSA_VEC(opcode)) {
+    case OPC_MSA_AND_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_and_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_OR_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_or_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_NOR_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_nor_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_XOR_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_xor_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_BMNZ_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_bmnz_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_BMZ_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_bmz_v(cpu_env, twd, tws, twt);
+        break;
+    case OPC_MSA_BSEL_V:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_bsel_v(cpu_env, twd, tws, twt);
+        break;
+
+    case OPC_MSA_2R:
+        {
+            uint8_t df = (ctx->opcode >> 16) & 0x3 /* df [17:16] */;
+            TCGv_i32 tdf = tcg_const_i32(df);
+
+            switch (MASK_MSA_2R(opcode)) {
+            case OPC_MSA_FILL_df:
+#if !defined(TARGET_MIPS64)
+                /* Double format valid only for MIPS64 */
+                if (df == 3) {
+                    if (check_msa_access(env, ctx, -1, -1, -1)) {
+                        generate_exception(ctx, EXCP_RI);
+                    }
+                    break;
+                }
+#endif
+                check_msa_access(env, ctx, -1, -1, wd);
+                gen_helper_msa_fill_df(cpu_env, tdf, twd, tws); /* trs */
+                break;
+            case OPC_MSA_PCNT_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_pcnt_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_NLOC_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_nloc_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_NLZC_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_nlzc_df(cpu_env, tdf, twd, tws);
+                break;
+            default:
+                break;
+            }
+
+            tcg_temp_free_i32(tdf);
+        }
+        break;
+    case OPC_MSA_2RF:
+    default:
+        break;
+    }
+
+    tcg_temp_free_i32(twd);
+    tcg_temp_free_i32(tws);
+    tcg_temp_free_i32(twt);
+}
 static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
 {
     uint32_t opcode = ctx->opcode;
@@ -15708,6 +15803,9 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
     case OPC_MSA_3RF_1B:
     case OPC_MSA_3RF_1C:
         gen_msa_3rf(env, ctx);
+        break;
+    case OPC_MSA_VEC:
+        gen_msa_vec(env, ctx);
         break;
     default:
         MIPS_INVAL("MSA instruction");

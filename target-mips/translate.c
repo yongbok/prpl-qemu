@@ -15758,6 +15758,82 @@ static void gen_msa_vec(CPUMIPSState *env, DisasContext *ctx)
         }
         break;
     case OPC_MSA_2RF:
+        {
+            uint8_t df = (ctx->opcode >> 16) & 0x1 /* df [16:16] */;
+            /* adjust df value for floating-point instruction */
+            df = df + 2;
+            TCGv_i32 tdf = tcg_const_i32(df);
+
+            switch (MASK_MSA_2RF(opcode)) {
+            case OPC_MSA_FCLASS_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_fclass_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FTRUNC_S_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ftrunc_s_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FTRUNC_U_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ftrunc_u_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FSQRT_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_fsqrt_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FRSQRT_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_frsqrt_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FRCP_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_frcp_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FRINT_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_frint_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FRLOG2_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_flog2_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FEXUPL_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_fexupl_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FEXUPR_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_fexupr_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FFQL_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ffql_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FFQR_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ffqr_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FINT_S_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ftint_s_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FINT_U_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ftint_u_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FFINT_S_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ffint_s_df(cpu_env, tdf, twd, tws);
+                break;
+            case OPC_MSA_FFINT_U_df:
+                check_msa_access(env, ctx, -1, ws, wd);
+                gen_helper_msa_ffint_u_df(cpu_env, tdf, twd, tws);
+                break;
+            }
+
+            tcg_temp_free_i32(tdf);
+        }
+        break;
     default:
         break;
     }

@@ -15473,6 +15473,204 @@ static void gen_msa_elm(CPUMIPSState *env, DisasContext *ctx)
     }
 }
 
+static void gen_msa_3rf(CPUMIPSState *env, DisasContext *ctx)
+{
+#define MASK_MSA_3RF(op)    (MASK_MSA_MINOR(op) | (op & (0xf << 22)))
+    uint32_t opcode = ctx->opcode;
+
+    uint8_t df2 = (ctx->opcode >> 21) & 0x1 /* df [21:21] */;
+    uint8_t df1 = (ctx->opcode >> 21) & 0x1 /* df [21:21] */;
+    /* adjust df value for floating-point instruction */
+    df2 = df2 + 2;
+    df1 = df1 + 1;
+    uint8_t wt = (ctx->opcode >> 16) & 0x1f /* wt [20:16] */;
+    uint8_t ws = (ctx->opcode >> 11) & 0x1f /* ws [15:11] */;
+    uint8_t wd = (ctx->opcode >> 6) & 0x1f /* wd [10:6] */;
+
+    TCGv_i32 twd = tcg_const_i32(wd);
+    TCGv_i32 tws = tcg_const_i32(ws);
+    TCGv_i32 twt = tcg_const_i32(wt);
+    TCGv_i32 tdf2 = tcg_const_i32(df2);
+    TCGv_i32 tdf1 = tcg_const_i32(df1);
+
+    switch (MASK_MSA_3RF(opcode)) {
+    case OPC_MSA_FCAF_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcaf_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FADD_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fadd_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCUN_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcun_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSUB_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsub_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCOR_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcor_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCEQ_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fceq_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMUL_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmul_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCUNE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcune_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCUEQ_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcueq_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FDIV_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fdiv_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCNE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcne_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FCLT_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fclt_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMADD_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmadd_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MUL_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_mul_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FCULT_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcult_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMSUB_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmsub_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MADD_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_madd_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FCLE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcle_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MSUB_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_msub_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FCULE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fcule_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FEXP2_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fexp2_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSAF_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsaf_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FEXDO_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fexdo_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSUN_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsun_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSOR_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsor_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSEQ_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fseq_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FTQ_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_ftq_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSUNE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsune_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSUEQ_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsueq_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSNE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsne_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FSLT_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fslt_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMIN_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmin_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MULR_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_mulr_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FSULT_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsult_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMIN_A_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmin_a_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MADDR_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_maddr_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FSLE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsle_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMAX_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmax_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_MSUBR_Q_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_msubr_q_df(cpu_env, tdf1, twd, tws, twt);
+        break;
+    case OPC_MSA_FSULE_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fsule_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    case OPC_MSA_FMAX_A_df:
+        check_msa_access(env, ctx, wt, ws, wd);
+        gen_helper_msa_fmax_a_df(cpu_env, tdf2, twd, tws, twt);
+        break;
+    default:
+        MIPS_INVAL("MSA instruction");
+        generate_exception(ctx, EXCP_RI);
+        break;
+    }
+
+    tcg_temp_free_i32(twd);
+    tcg_temp_free_i32(tws);
+    tcg_temp_free_i32(twt);
+    tcg_temp_free_i32(tdf2);
+    tcg_temp_free_i32(tdf1);
+}
+
 static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
 {
     uint32_t opcode = ctx->opcode;
@@ -15505,6 +15703,11 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
         break;
     case OPC_MSA_ELM:
         gen_msa_elm(env, ctx);
+        break;
+    case OPC_MSA_3RF_1A:
+    case OPC_MSA_3RF_1B:
+    case OPC_MSA_3RF_1C:
+        gen_msa_3rf(env, ctx);
         break;
     default:
         MIPS_INVAL("MSA instruction");

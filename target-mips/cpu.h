@@ -893,6 +893,10 @@ HELPER_LD(lw, ldl, int32_t)
 #ifdef TARGET_MIPS64
 HELPER_LD(ld, ldq, int64_t)
 #endif
+HELPER_LD(ld8, ldub, uint8_t)
+HELPER_LD(ld16, lduw, uint16_t)
+HELPER_LD(ld32, ldl, int32_t)
+HELPER_LD(ld64, ldq, int64_t)
 #undef HELPER_LD
 
 #if defined(CONFIG_USER_ONLY)
@@ -926,6 +930,10 @@ HELPER_ST(sw, stl, uint32_t)
 #ifdef TARGET_MIPS64
 HELPER_ST(sd, stq, uint64_t)
 #endif
+HELPER_ST(st8, stb, uint8_t)
+HELPER_ST(st16, stw, uint16_t)
+HELPER_ST(st32, stl, int32_t)
+HELPER_ST(st64, stq, int64_t)
 #undef HELPER_ST
 
 #endif /* !defined (__MIPS_CPU_H__) */

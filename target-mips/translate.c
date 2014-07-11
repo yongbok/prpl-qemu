@@ -15883,6 +15883,49 @@ static void gen_msa(CPUMIPSState *env, DisasContext *ctx)
     case OPC_MSA_VEC:
         gen_msa_vec(env, ctx);
         break;
+    case OPC_MSA_LD_B:
+    case OPC_MSA_LD_H:
+    case OPC_MSA_LD_W:
+    case OPC_MSA_LD_D:
+    case OPC_MSA_ST_B:
+    case OPC_MSA_ST_H:
+    case OPC_MSA_ST_W:
+    case OPC_MSA_ST_D:
+        {
+            int64_t s10 = (ctx->opcode >> 16) & 0x3ff /* s10 [25:16] */;
+            s10 = (s10 << 54) >> 54; /* sign extend s10 to 64 bits*/
+            uint8_t rs = (ctx->opcode >> 11) & 0x1f /* rs [15:11] */;
+            uint8_t wd = (ctx->opcode >> 6) & 0x1f /* wd [10:6] */;
+            uint8_t df = (ctx->opcode >> 0) & 0x3 /* df [1:0] */;
+
+            TCGv_i32 tdf = tcg_const_i32(df);
+            TCGv_i32 twd = tcg_const_i32(wd);
+            TCGv_i32 trs = tcg_const_i32(rs);
+            TCGv_i64 ts10 = tcg_const_i64(s10);
+
+            switch (MASK_MSA_MINOR(opcode)) {
+            case OPC_MSA_LD_B:
+            case OPC_MSA_LD_H:
+            case OPC_MSA_LD_W:
+            case OPC_MSA_LD_D:
+                check_msa_access(env, ctx, -1, -1, wd);
+                gen_helper_msa_ld_df(cpu_env, tdf, twd, trs, ts10);
+                break;
+            case OPC_MSA_ST_B:
+            case OPC_MSA_ST_H:
+            case OPC_MSA_ST_W:
+            case OPC_MSA_ST_D:
+                check_msa_access(env, ctx, -1, -1, wd);
+                gen_helper_msa_st_df(cpu_env, tdf, twd, trs, ts10);
+                break;
+            }
+
+            tcg_temp_free_i32(twd);
+            tcg_temp_free_i32(tdf);
+            tcg_temp_free_i32(trs);
+            tcg_temp_free_i64(ts10);
+        }
+        break;
     default:
         MIPS_INVAL("MSA instruction");
         generate_exception(ctx, EXCP_RI);

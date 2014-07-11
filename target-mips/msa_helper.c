@@ -3240,6 +3240,81 @@ void helper_msa_msubr_q_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     }
 }
 
+static inline int64_t msa_ld_df(CPUMIPSState *env, uint32_t df_bits,
+        target_ulong addr)
+{
+    switch (df_bits) {
+    case 8:
+        return  do_ld8(env, addr, env->hflags & MIPS_HFLAG_KSU);
+    case 16:
+        return  do_ld16(env, addr, env->hflags & MIPS_HFLAG_KSU);
+    case 32:
+        return (int64_t) do_ld32(env, addr, env->hflags & MIPS_HFLAG_KSU);
+    case 64:
+        return (int64_t) do_ld64(env, addr, env->hflags & MIPS_HFLAG_KSU);
+    }
+    return 0;
+}
+
+void helper_msa_ld_df(CPUMIPSState *env, uint32_t df, uint32_t wd, uint32_t rs,
+        int64_t s10)
+{
+    int64_t td;
+    int df_bits = 8 * (1 << df);
+    int i;
+    target_ulong addr;
+    int16_t offset = s10 << df;
+
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        addr = env->active_tc.gpr[rs] + offset + (i << df);
+        td = msa_ld_df(env, df_bits, addr);
+        msa_store_wr_elem(env, td, wd, df, i);
+    }
+
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
+static inline void msa_st_df(CPUMIPSState *env, uint32_t df_bits,
+        target_ulong addr, int64_t val)
+{
+    switch (df_bits) {
+    case 8:
+        do_st8(env, addr, val, env->hflags & MIPS_HFLAG_KSU);
+        break;
+    case 16:
+        do_st16(env, addr, val, env->hflags & MIPS_HFLAG_KSU);
+        break;
+    case 32:
+        do_st32(env, addr, val, env->hflags & MIPS_HFLAG_KSU);
+        break;
+    case 64:
+        do_st64(env, addr, val, env->hflags & MIPS_HFLAG_KSU);
+        break;
+    }
+}
+
+void helper_msa_st_df(CPUMIPSState *env, uint32_t df, uint32_t wd, uint32_t rs,
+        int64_t s10)
+{
+    int64_t td;
+    int df_bits = 8 * (1 << df);
+    int i;
+    target_ulong addr;
+    int16_t offset = s10 << df;
+
+    for (i = 0; i < MSA_WRLEN / df_bits; i++) {
+        addr = env->active_tc.gpr[rs] + offset + (i << df);
+        td = msa_load_wr_elem_i64(env, wd, df, i);
+        msa_st_df(env, df_bits, addr, td);
+    }
+
+    if (env->active_msa.msair & MSAIR_WRP_BIT) {
+        env->active_msa.msamodify |= (1 << wd);
+    }
+}
+
 #define FLOAT_ONE32 make_float32(0x3f8 << 20)
 #define FLOAT_ONE64 make_float64(0x3ffULL << 52)
 
